@@ -1,16 +1,23 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pedrogcg2/rinha-2026/repository"
 )
+
+var pool *pgxpool.Pool
 
 func main() {
 	addEndpoints()
 	initConstants()
+
 	server := &http.Server{Addr: ":9999", ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
 	server.ListenAndServe()
 }
@@ -29,6 +36,11 @@ func initConstants() {
 		panic(err)
 	}
 	err = json.Unmarshal(normalizationConstants, &Constants)
+	if err != nil {
+		panic(err)
+	}
+
+	pool, err = repository.NewPool(context.Background())
 	if err != nil {
 		panic(err)
 	}
@@ -55,8 +67,9 @@ func fraudScore(w http.ResponseWriter, r *http.Request) {
 
 func calculate_fraud_score(r *TransactionRequest) float32 {
 	v := VectorizeTransaction(r)
-	fmt.Println(v)
-	return 0.5
+	count := repository.FindLegitCounts(context.Background(), pool, v)
+	fmt.Println(count)
+	return float32(count) / 5
 }
 
 type FraudScoreResponse struct {

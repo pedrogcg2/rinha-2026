@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"slices"
 	"time"
 )
@@ -34,7 +33,6 @@ func VectorizeTransaction(transaction *TransactionRequest) [14]float32 {
 		vector[6] = clamp(transaction.LastTransaction.KmFromCurrent / Constants.MaxKm)
 	}
 	vector[7] = clamp(transaction.Terminal.KmFromHome / Constants.MaxKm)
-	fmt.Println(transaction.Customer.LastDayHoursTransactionsCount)
 	vector[8] = clamp(transaction.Customer.LastDayHoursTransactionsCount / Constants.MaxTransactionsCountLast24hours)
 	vector[9] = clampBool(transaction.Terminal.IsOnline)
 	vector[10] = clampBool(transaction.Terminal.CardPresent)
@@ -60,7 +58,6 @@ func GetWeekDay(t time.Time) float32 {
 	if day == 0 {
 		return 6.0
 	}
-	fmt.Println(day - 1)
 	return day - 1
 }
 
