@@ -21,8 +21,7 @@ func NewPool(ctx context.Context) (*pgxpool.Pool, error) {
 		return pgxvector.RegisterTypes(ctx, conn)
 	}
 
-	config.MaxConns = 20000
-	config.MinConns = 10000
+	config.MinConns = 1000
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
@@ -41,7 +40,7 @@ func FindLegitCounts(ctx context.Context, pool *pgxpool.Pool, embedding [14]floa
 
 	row := pool.QueryRow(ctx, query, pgvector.NewVector(embedding[:]))
 
-	result := 0
+	var result int
 	err := row.Scan(&result)
 
 	if err != nil {

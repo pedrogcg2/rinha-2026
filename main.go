@@ -17,8 +17,8 @@ var pool *pgxpool.Pool
 func main() {
 	addEndpoints()
 	initConstants()
-
-	server := &http.Server{Addr: ":9999", ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
+	defer pool.Close()
+	server := &http.Server{Addr: ":8080", ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
 	server.ListenAndServe()
 }
 
@@ -60,7 +60,7 @@ func fraudScore(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	decoder.Decode(&payload)
 	score := calculate_fraud_score(&payload)
-	approved := score < 0.6
+	approved := score > 0.6
 	response := FraudScoreResponse{Approved: approved, FraudScore: score}
 	json.NewEncoder(w).Encode(response)
 }
