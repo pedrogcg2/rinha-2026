@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -18,11 +17,12 @@ func main() {
 	addEndpoints()
 	initConstants()
 	defer pool.Close()
-	server := &http.Server{Addr: ":8080", ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
+	server := &http.Server{Addr: ":8080", ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second}
 	server.ListenAndServe()
 }
 
 func initConstants() {
+	repository.DbSemaphore = make(chan int, 10)
 	mccRiskBuff, err := os.ReadFile("mcc_risk.json")
 	if err != nil {
 		panic(err)
@@ -60,15 +60,14 @@ func fraudScore(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	decoder.Decode(&payload)
 	score := calculate_fraud_score(&payload)
-	approved := score > 0.6
+	approved := score < 0.6
 	response := FraudScoreResponse{Approved: approved, FraudScore: score}
 	json.NewEncoder(w).Encode(response)
 }
 
 func calculate_fraud_score(r *TransactionRequest) float32 {
 	v := VectorizeTransaction(r)
-	count := repository.FindLegitCounts(context.Background(), pool, v)
-	fmt.Println(count)
+	count := repository.GetNearFraudTransactionsCount(context.Background(), pool, v)
 	return float32(count) / 5
 }
 
