@@ -1,11 +1,8 @@
 package preprocessor
 
 import (
-	"compress/gzip"
 	"encoding/json"
-	"fmt"
 	"log"
-	"math"
 	"os"
 	"runtime"
 	"time"
@@ -20,7 +17,7 @@ type transaction struct {
 
 type transactionReference struct {
 	Vector []float64 `json:"vector"`
-	Legit  string    `json:"label"`
+	Legit  bool      `json:"legit"`
 }
 
 func Process(path string) *VpTreeNode {
@@ -28,21 +25,15 @@ func Process(path string) *VpTreeNode {
 	if err != nil {
 		panic(err)
 	}
-	r, err := gzip.NewReader(file)
-	if err != nil {
-		panic(err)
-	}
 
 	transactionsRaw := []transactionReference{}
-	json.NewDecoder(r).Decode(&transactionsRaw)
-	fmt.Println(len(transactionsRaw))
-	transactions := getTransactionsLabel(transactionsRaw[:int(2.3*math.Pow10(5))])
+	json.NewDecoder(file).Decode(&transactionsRaw)
+	transactions := getTransactionsLabel(transactionsRaw[:])
 
 	//TODO: to desalocando memoria inutilizada para evitar estouro
 	//quando de fato tiver um preprocessamento decente, talvez isso nao seja necessario.
 	//nao custa nada manter (eu acho)
-	r.Close()
-
+	file.Close()
 	transactionsRaw = nil
 	log.Println("Calling GC:")
 	time.Sleep(time.Second * 3)
@@ -50,12 +41,32 @@ func Process(path string) *VpTreeNode {
 	return buildVpTree(transactions)
 }
 
+func ProcessHeap(path string) *Heap {
+	file, err := os.Open(path)
+	if err != nil {
+		panic(err)
+	}
+
+	transactionsRaw := []transactionReference{}
+	json.NewDecoder(file).Decode(&transactionsRaw)
+	transactions := getTransactionsLabel(transactionsRaw[:])
+
+	//TODO: to desalocando memoria inutilizada para evitar estouro
+	//quando de fato tiver um preprocessamento decente, talvez isso nao seja necessario.
+	//nao custa nada manter (eu acho)
+	file.Close()
+	transactionsRaw = nil
+	log.Println("Calling GC:")
+	time.Sleep(time.Second * 3)
+	runtime.GC()
+	return &Heap{transactions: transactions}
+}
+
 func getTransactionsLabel(r []transactionReference) []transaction {
 	result := make([]transaction, 0, len(r))
 
 	for _, t := range r {
-		legit := t.Legit == "legit"
-		result = append(result, transaction{legit: legit, embedding: mat.NewVecDense(len(t.Vector), t.Vector)})
+		result = append(result, transaction{legit: t.Legit, embedding: mat.NewVecDense(len(t.Vector), t.Vector)})
 	}
 
 	return result

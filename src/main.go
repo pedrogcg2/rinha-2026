@@ -37,7 +37,7 @@ func initConstants() {
 		panic(err)
 	}
 
-	vpTree = preprocessor.Process("../resources/references.json.gz")
+	vpTree = preprocessor.Process("../resources/references.json")
 }
 
 func addEndpoints() {
