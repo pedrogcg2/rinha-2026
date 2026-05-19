@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"os"
 
@@ -15,7 +14,6 @@ import (
 
 const (
 	maxSize = 3_000_000
-	scale   = 1_000
 )
 
 type transactionReference struct {
@@ -83,9 +81,8 @@ func saveTree(tree *index.VpTree) {
 
 func getTransactions(r transactionReference) *index.QuantizeTransaction {
 	v := [14]int16{}
-	log.Println(r.Legit)
 	for i, t := range r.Vector {
-		v[i] = int16(math.Round(t * scale))
+		v[i] = int16(math.Ceil(t * index.Scale))
 	}
 	return &index.QuantizeTransaction{Vector: v, Legit: r.Legit == "legit"}
 }

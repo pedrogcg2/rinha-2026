@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/binary"
 	"encoding/json"
-	"log"
 	"net/http"
 	"os"
 	"runtime"
@@ -42,24 +41,12 @@ func initConstants() {
 	if err != nil {
 		panic(err)
 	}
-	printMemoryUsage("Before loading file")
 	LoadVpTreeFromBin("../resources/idx.bin")
-	printMemoryUsage("after loading file")
 	dataLoaded = true
-}
-
-func printMemoryUsage(label string) {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	toMB := func(b uint64) uint64 {
-		return b / 1024 / 1024
-	}
-	log.Printf("%s: Alloc=%dMB HeapAlloc=%dMB", label, toMB(m.Alloc), toMB(m.HeapAlloc))
 }
 
 func LoadVpTreeFromBin(path string) {
 	f, err := os.Open(path)
-	printMemoryUsage("after open file")
 	if err != nil {
 		panic(err)
 	}
@@ -69,18 +56,14 @@ func LoadVpTreeFromBin(path string) {
 	for j := range 3_000_000 {
 
 		if j%500_000 == 0 {
-			printMemoryUsage("Allocated 1kk")
 			runtime.GC()
-			printMemoryUsage("Freed 1kk")
 		}
 		err = binary.Read(bf, binary.LittleEndian, &vpTree.Nodes[j])
 		if err != nil {
 			panic(err)
 		}
 	}
-	printMemoryUsage("After decode")
 	runtime.GC()
-	printMemoryUsage("After GC")
 }
 
 func addEndpoints() {
