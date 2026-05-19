@@ -1,16 +1,22 @@
 package main
 
 import (
+	"bufio"
+	"encoding/binary"
 	"encoding/json"
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"time"
 
-	"github.com/pedrogcg2/rinha-2026/preprocessor"
+	"github.com/pedrogcg2/rinha-2026/index"
 )
 
-var vpTree *preprocessor.VpTreeNode
+var (
+	vpTree     *index.VpTree = nil
+	dataLoaded bool          = false
+)
 
 func main() {
 	addEndpoints()
@@ -36,8 +42,45 @@ func initConstants() {
 	if err != nil {
 		panic(err)
 	}
+	printMemoryUsage("Before loading file")
+	LoadVpTreeFromBin("../resources/idx.bin")
+	printMemoryUsage("after loading file")
+	dataLoaded = true
+}
 
-	vpTree = preprocessor.Process("../resources/references.json")
+func printMemoryUsage(label string) {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	toMB := func(b uint64) uint64 {
+		return b / 1024 / 1024
+	}
+	log.Printf("%s: Alloc=%dMB HeapAlloc=%dMB", label, toMB(m.Alloc), toMB(m.HeapAlloc))
+}
+
+func LoadVpTreeFromBin(path string) {
+	f, err := os.Open(path)
+	printMemoryUsage("after open file")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	vpTree = &index.VpTree{}
+	bf := bufio.NewReader(f)
+	for j := range 3_000_000 {
+
+		if j%500_000 == 0 {
+			printMemoryUsage("Allocated 1kk")
+			runtime.GC()
+			printMemoryUsage("Freed 1kk")
+		}
+		err = binary.Read(bf, binary.LittleEndian, &vpTree.Nodes[j])
+		if err != nil {
+			panic(err)
+		}
+	}
+	printMemoryUsage("After decode")
+	runtime.GC()
+	printMemoryUsage("After GC")
 }
 
 func addEndpoints() {
@@ -46,24 +89,25 @@ func addEndpoints() {
 }
 
 func ready(w http.ResponseWriter, r *http.Request) {
+	if !dataLoaded {
+		w.WriteHeader(401)
+		return
+	}
 	w.WriteHeader(200)
 }
 
 func fraudScore(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
 	var payload TransactionRequest
 
 	decoder := json.NewDecoder(r.Body)
 	decoder.Decode(&payload)
-	score := calculate_fraud_score(&payload)
+	score := calculateFraudScore(&payload)
 	approved := score < 0.6
 	response := FraudScoreResponse{Approved: approved, FraudScore: score}
 	json.NewEncoder(w).Encode(response)
-	elapsed := time.Since(start)
-	log.Printf("Elapsed in %d ms", elapsed.Milliseconds())
 }
 
-func calculate_fraud_score(r *TransactionRequest) float64 {
+func calculateFraudScore(r *TransactionRequest) float64 {
 	v := VectorizeTransaction(r)
 	return vpTree.Query(v)
 }

@@ -1,73 +1,91 @@
-package preprocessor
+package main
 
 import (
+	"compress/gzip"
+	"encoding/binary"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
+	"math"
 	"os"
-	"runtime"
-	"time"
 
-	"gonum.org/v1/gonum/mat"
+	"github.com/pedrogcg2/rinha-2026/index"
 )
 
-type transaction struct {
-	embedding *mat.VecDense
-	legit     bool
-}
+const (
+	maxSize = 3_000_000
+	scale   = 1_000
+)
 
 type transactionReference struct {
 	Vector []float64 `json:"vector"`
-	Legit  bool      `json:"legit"`
+	Legit  string    `json:"label"`
 }
 
-func Process(path string) *VpTreeNode {
+func main() {
+	Process("../../resources/references.json.gz")
+}
+
+func Process(path string) {
 	file, err := os.Open(path)
 	if err != nil {
 		panic(err)
 	}
 
-	transactionsRaw := []transactionReference{}
-	json.NewDecoder(file).Decode(&transactionsRaw)
-	transactions := getTransactionsLabel(transactionsRaw[:])
-
-	//TODO: to desalocando memoria inutilizada para evitar estouro
-	//quando de fato tiver um preprocessamento decente, talvez isso nao seja necessario.
-	//nao custa nada manter (eu acho)
-	file.Close()
-	transactionsRaw = nil
-	log.Println("Calling GC:")
-	time.Sleep(time.Second * 3)
-	runtime.GC()
-	return buildVpTree(transactions)
-}
-
-func ProcessHeap(path string) *Heap {
-	file, err := os.Open(path)
+	g, err := gzip.NewReader(file)
 	if err != nil {
 		panic(err)
 	}
 
-	transactionsRaw := []transactionReference{}
-	json.NewDecoder(file).Decode(&transactionsRaw)
-	transactions := getTransactionsLabel(transactionsRaw[:])
+	dec := json.NewDecoder(g)
+	if _, err = dec.Token(); err != nil {
+		panic(err)
+	}
+	current := transactionReference{Vector: make([]float64, 0, 14), Legit: ""}
+	t := make([]*index.QuantizeTransaction, maxSize)
+	c := 0
 
-	//TODO: to desalocando memoria inutilizada para evitar estouro
-	//quando de fato tiver um preprocessamento decente, talvez isso nao seja necessario.
-	//nao custa nada manter (eu acho)
-	file.Close()
-	transactionsRaw = nil
-	log.Println("Calling GC:")
-	time.Sleep(time.Second * 3)
-	runtime.GC()
-	return &Heap{transactions: transactions}
-}
-
-func getTransactionsLabel(r []transactionReference) []transaction {
-	result := make([]transaction, 0, len(r))
-
-	for _, t := range r {
-		result = append(result, transaction{legit: t.Legit, embedding: mat.NewVecDense(len(t.Vector), t.Vector)})
+	for dec.More() {
+		if c == maxSize {
+			break
+		}
+		err = dec.Decode(&current)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			fmt.Println(err.Error())
+			panic(err)
+		}
+		t[c] = getTransactions(current)
+		c++
 	}
 
-	return result
+	tree := index.BuildVpTree(t)
+
+	saveTree(tree)
+}
+
+func saveTree(tree *index.VpTree) {
+	file, err := os.Create("../../resources/idx.bin")
+	if err != nil {
+		panic(err)
+	}
+
+	defer file.Close()
+
+	err = binary.Write(file, binary.LittleEndian, tree.Nodes)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func getTransactions(r transactionReference) *index.QuantizeTransaction {
+	v := [14]int16{}
+	log.Println(r.Legit)
+	for i, t := range r.Vector {
+		v[i] = int16(math.Round(t * scale))
+	}
+	return &index.QuantizeTransaction{Vector: v, Legit: r.Legit == "legit"}
 }

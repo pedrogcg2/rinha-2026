@@ -4,7 +4,7 @@ import (
 	"slices"
 	"time"
 
-	"gonum.org/v1/gonum/mat"
+	"github.com/pedrogcg2/rinha-2026/index"
 )
 
 type NormalizationConstants struct {
@@ -17,11 +17,13 @@ type NormalizationConstants struct {
 	MaxMerchantAverageAmount        float64 `json:"max_merchant_avg_amount"`
 }
 
-var MCC_RISK map[string]float64
-var Constants NormalizationConstants
+var (
+	MCC_RISK  map[string]float64
+	Constants NormalizationConstants
+)
 
-func VectorizeTransaction(transaction *TransactionRequest) *mat.VecDense {
-	vector := make([]float64, 14, 14)
+func VectorizeTransaction(transaction *TransactionRequest) [14]int16 {
+	vector := make([]float64, 14)
 
 	vector[0] = clamp(transaction.Transaction.Amount / Constants.MaxAmount)
 	vector[1] = clamp(transaction.Transaction.Installments / Constants.MaxInstallments)
@@ -45,7 +47,11 @@ func VectorizeTransaction(transaction *TransactionRequest) *mat.VecDense {
 		vector[12] = risk
 	}
 	vector[13] = clamp(transaction.Merchant.AverageAmount / Constants.MaxMerchantAverageAmount)
-	return mat.NewVecDense(14, vector)
+	result := [14]int16{}
+	for i := range len(vector) {
+		result[i] = int16(vector[i] * index.Scale)
+	}
+	return result
 }
 
 func clampBool(b bool) float64 {
