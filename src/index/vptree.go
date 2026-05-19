@@ -1,7 +1,8 @@
 package index
 
 import (
-	"log"
+	"cmp"
+	"math"
 	"slices"
 )
 
@@ -22,35 +23,11 @@ type VpTree struct {
 	Nodes [maxSize]VpTreeNode
 }
 
-type queryCandidate struct {
-	vp *VpTreeNode
-	d  uint16
-}
-
 func (h *VpTree) Query(vector [14]int16) float64 {
-	candidates := make([]queryCandidate, 0, 5)
-	farthestCandidate := 0
-	var idx uint32
-	for idx < maxSize {
-		current := &h.Nodes[idx]
-		d := calculateDistance(vector, current.Vector)
-		qc := queryCandidate{vp: current, d: d}
-		if len(candidates) < 5 {
-			candidates = append(candidates, queryCandidate{vp: current, d: d})
-			if candidates[farthestCandidate].d < qc.d {
-				farthestCandidate = len(candidates) - 1
-			}
-		} else if qc.d < candidates[farthestCandidate].d {
-			candidates[farthestCandidate] = qc
-			farthestCandidate = recalculateFarthestCandidate(candidates)
-		}
-		if d > current.Threshold {
-			idx = current.Right
-			continue
-		}
-		idx = current.Left
-	}
-
+	candidates := make([]QueryCandidate, 0, 5)
+	current := h.Nodes[0]
+	tau := math.MaxInt
+	h.search(&vector, &current, &tau, &candidates)
 	var sum float64
 	for _, c := range candidates {
 		if !c.vp.Label {
@@ -61,25 +38,53 @@ func (h *VpTree) Query(vector [14]int16) float64 {
 	return sum / 5
 }
 
-func recalculateFarthestCandidate(candidates []queryCandidate) int {
-	idx := 0
-	farthestDistance := candidates[0].d
-	for i, c := range candidates {
-		if c.d > farthestDistance {
-			farthestDistance = c.d
-			idx = i
+func (h *VpTree) search(vector *[14]int16, current *VpTreeNode, tau *int, candidates *[]QueryCandidate) {
+	d := calculateDistance(*vector, current.Vector)
+	if int(d) < *tau || len(*candidates) < 5 {
+		qc := QueryCandidate{vp: current, d: d}
+		if len(*candidates) == 5 {
+			(*candidates)[4] = qc
+			slices.SortFunc(*candidates, func(x, y QueryCandidate) int {
+				return cmp.Compare(x.d, y.d)
+			})
+			*tau = int((*candidates)[4].d)
+		} else {
+			*candidates = append(*candidates, qc)
+			slices.SortFunc(*candidates, func(x, y QueryCandidate) int {
+				return cmp.Compare(x.d, y.d)
+			})
+			if len(*candidates) == 5 {
+				*tau = int((*candidates)[4].d)
+			}
 		}
 	}
-	return idx
+
+	if current.Left >= maxSize && current.Right >= maxSize {
+		return
+	}
+
+	t := int(current.Threshold)
+	if d < current.Threshold {
+		if current.Left < maxSize {
+			h.search(vector, &h.Nodes[current.Left], tau, candidates)
+		}
+		if (!(len(*candidates) == 5) || int(d)+*tau >= t) && current.Right < maxSize {
+			h.search(vector, &h.Nodes[current.Right], tau, candidates)
+		}
+	} else {
+		if current.Right < maxSize {
+			h.search(vector, &h.Nodes[current.Right], tau, candidates)
+		}
+		if (!(len(*candidates) == 5) || int(d)-*tau <= t) && current.Left < maxSize {
+			h.search(vector, &h.Nodes[current.Left], tau, candidates)
+		}
+	}
 }
 
-// TODO: NAO TA PREENCEHNDO TODOS OS INDICIES
-// TEM ALGUMA COISA ERRADA
 func BuildVpTree(t []*QuantizeTransaction) *VpTree {
 	tree := [maxSize]VpTreeNode{}
 	var c uint32
 	build(t, &tree, &c)
-	log.Println(c)
 	return &VpTree{Nodes: tree}
 }
 
@@ -143,17 +148,17 @@ func build(points []*QuantizeTransaction, nodes *[maxSize]VpTreeNode, next *uint
 		Right:     build(right, nodes, next),
 	}
 
-	log.Printf("index: %d - Vector: v%", idx, vp.Vector)
 	return idx
 }
 
 func calculateDistance(v1, v2 [14]int16) uint16 {
-	var sum uint16
+	var sum int32
 	for i := range len(v1) {
-		d := v1[i] - v2[i]
-		sum += uint16(d * d)
+		d := int32(v1[i] - v2[i])
+		sum += d * d
 	}
-	return sum
+
+	return uint16(math.Ceil(math.Sqrt(float64(sum))))
 }
 
 type VectorDistance struct {
