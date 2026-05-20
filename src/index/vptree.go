@@ -8,7 +8,6 @@ import (
 
 const (
 	maxSize = 3_000_000
-	Scale   = 1_000
 )
 
 type VpTreeNode struct {
@@ -152,13 +151,16 @@ func build(points []*QuantizeTransaction, nodes *[maxSize]VpTreeNode, next *uint
 }
 
 func calculateDistance(v1, v2 [14]int16) uint16 {
-	var sum int32
+	var sum int64
 	for i := range len(v1) {
-		d := int32(v1[i] - v2[i])
+		d := int64(v1[i] - v2[i])
 		sum += d * d
 	}
-
-	return uint16(math.Ceil(math.Sqrt(float64(sum))))
+	r := int64(math.Sqrt(float64(sum)))
+	if r*r < sum {
+		r++
+	}
+	return uint16(r)
 }
 
 type VectorDistance struct {

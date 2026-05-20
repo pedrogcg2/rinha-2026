@@ -1,7 +1,6 @@
 package main
 
 import (
-	"math"
 	"slices"
 	"time"
 
@@ -50,7 +49,7 @@ func VectorizeTransaction(transaction *TransactionRequest) [14]int16 {
 	vector[13] = clamp(transaction.Merchant.AverageAmount / Constants.MaxMerchantAverageAmount)
 	result := [14]int16{}
 	for i := range len(vector) {
-		result[i] = int16(math.Ceil(vector[i] * index.Scale))
+		result[i] = index.Quantize(vector[i])
 	}
 	return result
 }

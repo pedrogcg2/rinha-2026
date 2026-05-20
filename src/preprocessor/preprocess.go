@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"os"
 
 	"github.com/pedrogcg2/rinha-2026/index"
@@ -82,7 +81,7 @@ func saveTree(tree *index.VpTree) {
 func getTransactions(r transactionReference) *index.QuantizeTransaction {
 	v := [14]int16{}
 	for i, t := range r.Vector {
-		v[i] = int16(math.Ceil(t * index.Scale))
+		v[i] = index.Quantize(t)
 	}
 	return &index.QuantizeTransaction{Vector: v, Legit: r.Legit == "legit"}
 }
