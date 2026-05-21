@@ -2,6 +2,7 @@ package index
 
 import (
 	"cmp"
+	"log"
 	"math"
 	"slices"
 )
@@ -22,19 +23,19 @@ type VpTree struct {
 	Nodes [maxSize]VpTreeNode
 }
 
-func (h *VpTree) Query(vector [14]int16) float64 {
+func (h *VpTree) Query(vector [14]int16) int8 {
 	candidates := make([]QueryCandidate, 0, 5)
 	current := h.Nodes[0]
 	tau := math.MaxInt
 	h.search(&vector, &current, &tau, &candidates)
-	var sum float64
+	var sum int8
 	for _, c := range candidates {
 		if !c.vp.Label {
-			sum += 1.0
+			sum += 1
 		}
 	}
 
-	return sum / 5
+	return sum
 }
 
 func (h *VpTree) search(vector *[14]int16, current *VpTreeNode, tau *int, candidates *[]QueryCandidate) {
@@ -67,14 +68,14 @@ func (h *VpTree) search(vector *[14]int16, current *VpTreeNode, tau *int, candid
 		if current.Left < maxSize {
 			h.search(vector, &h.Nodes[current.Left], tau, candidates)
 		}
-		if (!(len(*candidates) == 5) || int(d)+*tau >= t) && current.Right < maxSize {
+		if int(d)+*tau >= t && current.Right < maxSize {
 			h.search(vector, &h.Nodes[current.Right], tau, candidates)
 		}
 	} else {
 		if current.Right < maxSize {
 			h.search(vector, &h.Nodes[current.Right], tau, candidates)
 		}
-		if (!(len(*candidates) == 5) || int(d)-*tau <= t) && current.Left < maxSize {
+		if int(d)-*tau <= t && current.Left < maxSize {
 			h.search(vector, &h.Nodes[current.Left], tau, candidates)
 		}
 	}
@@ -153,12 +154,15 @@ func build(points []*QuantizeTransaction, nodes *[maxSize]VpTreeNode, next *uint
 func calculateDistance(v1, v2 [14]int16) uint16 {
 	var sum int64
 	for i := range len(v1) {
-		d := int64(v1[i] - v2[i])
+		d := int64(v1[i]) - int64(v2[i])
 		sum += d * d
 	}
 	r := int64(math.Sqrt(float64(sum)))
 	if r*r < sum {
 		r++
+	}
+	if r > math.MaxUint16 {
+		log.Println("Overflow")
 	}
 	return uint16(r)
 }

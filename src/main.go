@@ -15,6 +15,7 @@ import (
 var (
 	vpTree     *index.VpTree = nil
 	dataLoaded bool          = false
+	responses  [6][]byte
 )
 
 func main() {
@@ -41,8 +42,21 @@ func initConstants() {
 	if err != nil {
 		panic(err)
 	}
+	initResponses()
 	LoadVpTreeFromBin("../resources/idx.bin")
 	dataLoaded = true
+}
+
+func initResponses() {
+	for i := range 6 {
+		approved := i < 3
+		value := float64(i / 10)
+		b, err := json.Marshal(FraudScoreResponse{Approved: approved, FraudScore: value})
+		if err != nil {
+			panic(err)
+		}
+		responses[i] = b
+	}
 }
 
 func LoadVpTreeFromBin(path string) {
@@ -80,17 +94,15 @@ func ready(w http.ResponseWriter, r *http.Request) {
 }
 
 func fraudScore(w http.ResponseWriter, r *http.Request) {
-	var payload TransactionRequest
-
 	decoder := json.NewDecoder(r.Body)
+	payload := TransactionRequest{}
 	decoder.Decode(&payload)
 	score := calculateFraudScore(&payload)
-	approved := score < 0.6
-	response := FraudScoreResponse{Approved: approved, FraudScore: score}
-	json.NewEncoder(w).Encode(response)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(responses[score])
 }
 
-func calculateFraudScore(r *TransactionRequest) float64 {
+func calculateFraudScore(r *TransactionRequest) int8 {
 	v := VectorizeTransaction(r)
 	return vpTree.Query(v)
 }
