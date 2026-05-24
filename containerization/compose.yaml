@@ -8,9 +8,9 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.45"
+          cpus: "0.3"
 
-          memory: "171MB"
+          memory: "160MB"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ready"]
       interval: 10s
@@ -26,8 +26,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.45"
-          memory: "171MB"
+          cpus: "0.35"
+          memory: "160MB"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ready"]
       interval: 10s
@@ -45,8 +45,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.1"
-          memory: "8MB"
+          cpus: "0.3"
+          memory: "30MB"
 
 networks:
   rinha:

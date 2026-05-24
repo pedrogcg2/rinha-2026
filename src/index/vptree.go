@@ -1,7 +1,6 @@
 package index
 
 import (
-	"cmp"
 	"log"
 	"math"
 	"slices"
@@ -24,12 +23,12 @@ type VpTree struct {
 }
 
 func (h *VpTree) Query(vector [14]int16) int8 {
-	candidates := make([]QueryCandidate, 0, 5)
+	pq := &PriorityQueue{candidates: [5]QueryCandidate{}, count: 0, farthestCandidate: 0}
 	current := h.Nodes[0]
 	tau := math.MaxInt
-	h.search(&vector, &current, &tau, &candidates)
+	h.search(&vector, &current, &tau, pq)
 	var sum int8
-	for _, c := range candidates {
+	for _, c := range pq.candidates {
 		if !c.vp.Label {
 			sum += 1
 		}
@@ -38,25 +37,12 @@ func (h *VpTree) Query(vector [14]int16) int8 {
 	return sum
 }
 
-func (h *VpTree) search(vector *[14]int16, current *VpTreeNode, tau *int, candidates *[]QueryCandidate) {
+func (h *VpTree) search(vector *[14]int16, current *VpTreeNode, tau *int, pq *PriorityQueue) {
 	d := calculateDistance(*vector, current.Vector)
-	if int(d) < *tau || len(*candidates) < 5 {
+	if int(d) < *tau || pq.count < 5 {
 		qc := QueryCandidate{vp: current, d: d}
-		if len(*candidates) == 5 {
-			(*candidates)[4] = qc
-			slices.SortFunc(*candidates, func(x, y QueryCandidate) int {
-				return cmp.Compare(x.d, y.d)
-			})
-			*tau = int((*candidates)[4].d)
-		} else {
-			*candidates = append(*candidates, qc)
-			slices.SortFunc(*candidates, func(x, y QueryCandidate) int {
-				return cmp.Compare(x.d, y.d)
-			})
-			if len(*candidates) == 5 {
-				*tau = int((*candidates)[4].d)
-			}
-		}
+		pq.Add(qc)
+		*tau = int(pq.candidates[pq.farthestCandidate].d)
 	}
 
 	if current.Left >= maxSize && current.Right >= maxSize {
@@ -66,17 +52,17 @@ func (h *VpTree) search(vector *[14]int16, current *VpTreeNode, tau *int, candid
 	t := int(current.Threshold)
 	if d < current.Threshold {
 		if current.Left < maxSize {
-			h.search(vector, &h.Nodes[current.Left], tau, candidates)
+			h.search(vector, &h.Nodes[current.Left], tau, pq)
 		}
 		if int(d)+*tau >= t && current.Right < maxSize {
-			h.search(vector, &h.Nodes[current.Right], tau, candidates)
+			h.search(vector, &h.Nodes[current.Right], tau, pq)
 		}
 	} else {
 		if current.Right < maxSize {
-			h.search(vector, &h.Nodes[current.Right], tau, candidates)
+			h.search(vector, &h.Nodes[current.Right], tau, pq)
 		}
 		if int(d)-*tau <= t && current.Left < maxSize {
-			h.search(vector, &h.Nodes[current.Left], tau, candidates)
+			h.search(vector, &h.Nodes[current.Left], tau, pq)
 		}
 	}
 }
