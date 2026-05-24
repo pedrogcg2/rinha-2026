@@ -18,40 +18,40 @@ type NormalizationConstants struct {
 }
 
 var (
-	MCC_RISK  map[string]float64
+	MccRisk   map[string]float64
 	Constants NormalizationConstants
 )
 
 func VectorizeTransaction(transaction *TransactionRequest) [14]int16 {
-	vector := make([]float64, 14)
+	vector := [14]int16{}
 
-	vector[0] = clamp(transaction.Transaction.Amount / Constants.MaxAmount)
-	vector[1] = clamp(transaction.Transaction.Installments / Constants.MaxInstallments)
-	vector[2] = clamp((transaction.Transaction.Amount / transaction.Customer.AverageAmount) / Constants.AmountVsAverageRatio)
-	vector[3] = clamp(float64(transaction.Transaction.RequestedAt.Hour()) / 23)
-	vector[4] = clamp(GetWeekDay(transaction.Transaction.RequestedAt) / 6)
-	vector[5] = -1
-	vector[6] = -1
+	vector[0] = index.Quantize(clamp(transaction.Transaction.Amount / Constants.MaxAmount))
+	vector[1] = index.Quantize(clamp(transaction.Transaction.Installments / Constants.MaxInstallments))
+	vector[2] = index.Quantize(clamp((transaction.Transaction.Amount / transaction.Customer.AverageAmount) / Constants.AmountVsAverageRatio))
+	vector[3] = index.Quantize(clamp(float64(transaction.Transaction.RequestedAt.Hour()) / 23))
+	vector[4] = index.Quantize(clamp(GetWeekDay(transaction.Transaction.RequestedAt) / 6))
+	v5 := float64(-1)
+	v6 := float64(-1)
 	if transaction.LastTransaction != nil {
-		vector[5] = clamp(float64(transaction.Transaction.RequestedAt.Sub(transaction.LastTransaction.TimeStamp).Minutes() / float64(Constants.MaxMinutes)))
-		vector[6] = clamp(transaction.LastTransaction.KmFromCurrent / Constants.MaxKm)
+		v5 = clamp(float64(transaction.Transaction.RequestedAt.Sub(transaction.LastTransaction.TimeStamp).Minutes() / float64(Constants.MaxMinutes)))
+		v6 = clamp(transaction.LastTransaction.KmFromCurrent / Constants.MaxKm)
 	}
-	vector[7] = clamp(transaction.Terminal.KmFromHome / Constants.MaxKm)
-	vector[8] = clamp(transaction.Customer.LastDayHoursTransactionsCount / Constants.MaxTransactionsCountLast24hours)
-	vector[9] = clampBool(transaction.Terminal.IsOnline)
-	vector[10] = clampBool(transaction.Terminal.CardPresent)
-	vector[11] = clampBool(!slices.Contains(transaction.Customer.KnownMerchants, transaction.Merchant.Id))
-	vector[12] = 0.5
-	risk, exists := MCC_RISK[transaction.Merchant.Mcc]
+	vector[5] = index.Quantize(v5)
+	vector[6] = index.Quantize(v6)
+	vector[7] = index.Quantize(clamp(transaction.Terminal.KmFromHome / Constants.MaxKm))
+	vector[8] = index.Quantize(clamp(transaction.Customer.LastDayHoursTransactionsCount / Constants.MaxTransactionsCountLast24hours))
+	vector[9] = index.Quantize(clampBool(transaction.Terminal.IsOnline))
+	vector[10] = index.Quantize(clampBool(transaction.Terminal.CardPresent))
+	vector[11] = index.Quantize(clampBool(!slices.Contains(transaction.Customer.KnownMerchants, transaction.Merchant.Id)))
+	v12 := 0.5
+	risk, exists := MccRisk[transaction.Merchant.Mcc]
 	if exists {
-		vector[12] = risk
+		v12 = risk
 	}
-	vector[13] = clamp(transaction.Merchant.AverageAmount / Constants.MaxMerchantAverageAmount)
-	result := [14]int16{}
-	for i := range len(vector) {
-		result[i] = index.Quantize(vector[i])
-	}
-	return result
+	vector[12] = index.Quantize(v12)
+	vector[13] = index.Quantize(clamp(transaction.Merchant.AverageAmount / Constants.MaxMerchantAverageAmount))
+
+	return vector
 }
 
 func clampBool(b bool) float64 {
