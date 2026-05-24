@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"encoding/binary"
 	"encoding/json"
-	"net/http"
 	"os"
 	"runtime"
 	"time"
 
 	"github.com/pedrogcg2/rinha-2026/index"
+	"github.com/valyala/fasthttp"
 )
 
 var (
@@ -19,10 +19,10 @@ var (
 )
 
 func main() {
-	addEndpoints()
 	initConstants()
-	server := &http.Server{Addr: ":8080", ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second}
-	server.ListenAndServe()
+	initResponses()
+
+	fasthttp.ListenAndServe(":8080", handler)
 }
 
 func initConstants() {
@@ -30,7 +30,7 @@ func initConstants() {
 	if err != nil {
 		panic(err)
 	}
-	err = json.Unmarshal(mccRiskBuff, &MCC_RISK)
+	err = json.Unmarshal(mccRiskBuff, &MccRisk)
 	if err != nil {
 		panic(err)
 	}
@@ -80,31 +80,39 @@ func LoadVpTreeFromBin(path string) {
 	runtime.GC()
 }
 
-func addEndpoints() {
-	http.HandleFunc("GET /ready", ready)
-	http.HandleFunc("POST /fraud-score", fraudScore)
+func handler(ctx *fasthttp.RequestCtx) {
+	path := string(ctx.Path())
+	switch {
+	case path == "/fraud-score":
+		fraudScore(ctx)
+
+	case path == "/ready":
+		ready(ctx)
+
+	}
 }
 
-func ready(w http.ResponseWriter, r *http.Request) {
+func ready(ctx *fasthttp.RequestCtx) {
 	if !dataLoaded {
-		w.WriteHeader(401)
+		ctx.Response.Header.SetStatusCode(401)
 		return
 	}
-	w.WriteHeader(200)
+	ctx.Response.Header.SetStatusCode(200)
 }
 
-func fraudScore(w http.ResponseWriter, r *http.Request) {
-	decoder := json.NewDecoder(r.Body)
+func fraudScore(ctx *fasthttp.RequestCtx) {
+	body := ctx.Request.Body()
 	payload := TransactionRequest{}
-	decoder.Decode(&payload)
+	json.Unmarshal(body, &payload)
 	score := calculateFraudScore(&payload)
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(responses[score])
+	ctx.Response.Header.Set("Content-Type", "application/json")
+	ctx.Response.AppendBody(responses[score])
 }
 
 func calculateFraudScore(r *TransactionRequest) int8 {
 	v := VectorizeTransaction(r)
-	return vpTree.Query(v)
+	result := vpTree.Query(v)
+	return result
 }
 
 type FraudScoreResponse struct {
